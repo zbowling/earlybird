@@ -21,7 +21,8 @@ class EarlyBird
   end
 
   def highlight(text)
-    text.gsub(Twitter::Regex::REGEXEN[:extract_mentions], ' ' + cyan('@\2')).
+    text.gsub("\r\n"," ").gsub("\n"," ").
+      gsub(Twitter::Regex::REGEXEN[:extract_mentions], ' ' + cyan('@\2')).
       gsub(Twitter::Regex::REGEXEN[:auto_link_hashtags], ' ' + yellow('#\3'))
   end
 
@@ -122,6 +123,15 @@ class EarlyBird
           print_retweet_from_data(data)
         else
           print_tweet_from_data(data)
+          reply_status_id = data['in_reply_to_status_id']
+          reply_user_id = data['in_reply_to_user_id']
+          if reply_status_id 
+            u, s = user_and_status(reply_user_id,reply_status_id)
+            if u and s
+              print "\t in reply to: "
+              print_tweet(s.user.screen_name, s.text)
+            end
+          end
         end
       else
         print "search result: \n\t"
