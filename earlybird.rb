@@ -4,19 +4,21 @@
 
 $KCODE = 'u'
 
-%w[rubygems pp net/http json twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri].each{|l| require l}
+%w[rubygems oauth/client/net_http pp net/http json twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri].each{|l| require l}
 
 include Term::ANSIColor
 
 class EarlyBird
 
-  def initialize(user, pass, filter, track)
-    httpauth = Twitter::HTTPAuth.new(user, pass)
-    @client = Twitter::Base.new(httpauth)
+  def initialize(consumer_token, consumer_secret, access_token, access_secret, filter, track)
+    oauth = Twitter::OAuth.new(consumer_token, consumer_secret)
+    oauth.authorize_from_access(access_token, access_secret)
+    @client = Twitter::Base.new(oauth)
     @friends = []
     @filter = filter
-    @screen_name = user
-    @track = Array(track) + Array(user)
+    @screen_name = @client.verify_credentials["screen_name"]
+    puts "Welcome #{@screen_name}!"
+    @track = Array(track) + Array(@screen_name)
     @icons = {}
   end
 
@@ -197,7 +199,7 @@ class Hose
   end
 
   # filter determines whether you remove @replies from users you don't follow
-  def run(user, pass, host, path, debug=false, filter=false)
+  def run(consumer, token, host, path, debug=false, filter=false)
     if debug
       $stdin.each_line do |line|
         process(line)
@@ -206,7 +208,7 @@ class Hose
       begin
         Net::HTTP.start(host) {|http|
           req = Net::HTTP::Get.new(path)
-          req.basic_auth user, pass
+          req.oauth!(http,consumer,token)
           http.request(req) do |response|
             buffer = ''
             raise response.inspect unless response.code == '200'
@@ -238,21 +240,29 @@ end
 
 trap("INT", "EXIT")
 
-user = ask("Enter your username:  ")
-pass = ask("Enter your password:  ") { |q| q.echo = '*' }
+#user = ask("Enter your username:  ")
+#pass = ask("Enter your password:  ") { |q| q.echo = '*' }
 
 def usage
-  puts "usage: earlybird.rb [-d] [-f] [-t key,words] [-u url] [-h host]"
+  puts "usage: earlybird.rb -c consumer_token -s consumer_secret -a access_token -S access_secret [-d] [-f] [-t key,words] [-u url] [-h host]"
   puts "options: "
-  puts "  -d debug mode, read json from stdin"
-  puts "  -f filter out @replies from users you don't follow"
-  puts "  -g growl notifications for new tweets"
-  puts "  -t track keywords separated by commas."
-  puts "  -u userstream path. Default: /2b/user.json"
-  puts "  -h userstream hostname: Default: chirpstream.twitter.com"
+  puts "  -c \t --consumer_token= \t consumer token" 
+  puts "  -s \t --consumer_secret= \t consumer secret" 
+  puts "  -a \t --access_token= \t access token" 
+  puts "  -S \t --access_secret= \t access secret" 
+  puts "  -d \t\t\t debug mode, read json from stdin"
+  puts "  -f \t\t\t filter out @replies from users you don't follow"
+  puts "  -g \t\t\t growl notifications for new tweets"
+  puts "  -t \t\t\t track keywords separated by commas."
+  puts "  -u \t\t\t userstream path. Default: /2b/user.json"
+  puts "  -h \t\t\t userstream hostname: Default: betastream.twitter.com"
 end
 
 opts = GetoptLong.new(
+      [ '--consumer-token','-c', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--consumer-secret','-s', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--access-token','-a', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--access-secret','-S', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--help', GetoptLong::NO_ARGUMENT ],
       [ '-d', GetoptLong::OPTIONAL_ARGUMENT ],
       [ '-f', GetoptLong::OPTIONAL_ARGUMENT ],
@@ -266,7 +276,11 @@ $filter = false
 $growl = false
 $track = []
 $url = '/2b/user.json'
-$host = 'chirpstream.twitter.com'
+$host = 'betastream.twitter.com'
+$consumer_token = ''
+$consumer_secret = ''
+$ac_token = ''
+$ac_secret = ''
 
 opts.each do |opt, arg|
   case opt
@@ -286,6 +300,14 @@ opts.each do |opt, arg|
     $url = arg
   when '-h'
     $host = arg
+  when '--consumer-token'
+    $consumer_token = arg
+  when '--consumer-secret'
+    $consumer_secret = arg
+  when '--access-token'
+    $ac_token = arg
+  when '--access-secret'
+    $ac_secret = arg
   end
 end
 
@@ -294,9 +316,11 @@ unless $track.empty?
   $url << "?track=" + CGI::escape($track.join(","))
 end
 
-puts "connecting to http://#{$host}#{$url}"
+puts "connecting to https://#{$host}#{$url}"
 
-eb = EarlyBird.new(user, pass, $filter, $track)
+eb = EarlyBird.new($consumer_token, $consumer_secret, $ac_token, $ac_secret, $filter, $track)
 trap("EXIT") { eb.cleanup_icons }
 
-Hose.new.run(user, pass, $host, $url, $debug){|line| eb.process(line)}
+consumer = OAuth::Consumer.new($consumer_token, $consumer_secret)
+token = OAuth::Token.new($ac_token, $ac_secret)
+Hose.new.run(consumer, token, $host, $url, $debug){|line| eb.process(line)}
