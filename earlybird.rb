@@ -4,7 +4,7 @@
 
 $KCODE = 'u'
 
-%w[rubygems oauth/client/net_http pp net/http json twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri].each{|l| require l}
+%w[rubygems oauth/client/net_http oauth/signature/plaintext pp net/http json twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri].each{|l| require l}
 
 include Term::ANSIColor
 
@@ -116,25 +116,21 @@ class EarlyBird
     if data['friends']
       # initial dump of friends
       @friends = data['friends']
-    elsif data['sender'] #dm
+    elsif data['direct_message'] #dm
       print "direct message: \n\t"
-      print_tweet(data['sender_screen_name'], data['text'])
+      print_tweet(data['direct_message']['sender_screen_name'], data['direct_message']['text'])
     elsif data['text'] #tweet
       # If it's from a friend or from yourself, treat as a tweet.
-      if @friends.include?(data['user']['id']) or (data['user']['screen_name'] == @screen_name)
-        if data['retweeted_status']
-          print_retweet_from_data(data)
-        else
-          print_tweet_from_data(data)
-          if @inreply #show in reply too tweets
-            reply_status_id = data['in_reply_to_status_id']
-            reply_user_id = data['in_reply_to_user_id']
-            if reply_status_id 
-              u, s = user_and_status(reply_user_id,reply_status_id)
-              if u and s
-                print "\t in reply to: "
-                print_tweet(s.user.screen_name, s.text)
-              end
+      if (@friends.include?(data['user']['id']) or (data['user']['screen_name'] == @screen_name)) and not data['retweeted_status']
+        print_tweet_from_data(data)
+        if @inreply #show in reply too tweets
+          reply_status_id = data['in_reply_to_status_id']
+          reply_user_id = data['in_reply_to_user_id']
+          if reply_status_id 
+            u, s = user_and_status(reply_user_id,reply_status_id)
+            if u and s
+              print "\t in reply to: "
+              print_tweet(s.user.screen_name, s.text)
             end
           end
         end
@@ -144,17 +140,14 @@ class EarlyBird
       end
     elsif data['event']
       case data['event']
-      when 'favorite', 'unfavorite'
-        u, s = user_and_status(data['source']['id'], data['target_object']['id'])
-        print sn(u.screen_name), ' ', data['event'], 'd', "\n"
+      when 'favorite', 'unfavorite', 'retweet'
+        print sn(data['source']['screen_name']), ' ', data['event'], 'd', "\n"
         print "\t"
-        print_tweet(s.user.screen_name, s.text)
+        print_tweet(data['target_object']['user']['screen_name'], data['target_object']['text'])
       when 'unfollow', 'follow', 'block'
-        s = @client.user(data['source']['id'])
-        t = @client.user(data['target']['id'])
+        s = data['source']
+        t = data['target']
         print sn(s['screen_name']), ' ', data['event'], 'ed', ' ', sn(t['screen_name']), "\n"
-      when 'retweet'
-        #ignore
       else
         puts "unknown event: #{data['event']}"
         puts data
@@ -212,6 +205,7 @@ class Hose
         Net::HTTP.start(host) {|http|
           req = Net::HTTP::Get.new(path)
           req.oauth!(http,consumer,token)
+          puts "calling #{req.path}"
           http.request(req) do |response|
             buffer = ''
             raise response.inspect unless response.code == '200'
