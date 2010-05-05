@@ -10,16 +10,17 @@ include Term::ANSIColor
 
 class EarlyBird
 
-  def initialize(consumer_token, consumer_secret, access_token, access_secret, filter, track)
-    oauth = Twitter::OAuth.new(consumer_token, consumer_secret)
-    oauth.authorize_from_access(access_token, access_secret)
-    @client = Twitter::Base.new(oauth)
+  def initialize(consumer_token, consumer_secret, access_token, access_secret, filter, track, inreply)
+    twoauth = Twitter::OAuth.new(consumer_token, consumer_secret)
+    twoauth.authorize_from_access(access_token, access_secret)
+    @client = Twitter::Base.new(twoauth)
     @friends = []
     @filter = filter
     @screen_name = @client.verify_credentials["screen_name"]
     puts "Welcome #{@screen_name}!"
     @track = Array(track) + Array(@screen_name)
     @icons = {}
+    @inreply = inreply
   end
 
   def highlight(text)
@@ -125,13 +126,15 @@ class EarlyBird
           print_retweet_from_data(data)
         else
           print_tweet_from_data(data)
-          reply_status_id = data['in_reply_to_status_id']
-          reply_user_id = data['in_reply_to_user_id']
-          if reply_status_id 
-            u, s = user_and_status(reply_user_id,reply_status_id)
-            if u and s
-              print "\t in reply to: "
-              print_tweet(s.user.screen_name, s.text)
+          if @inreply #show in reply too tweets
+            reply_status_id = data['in_reply_to_status_id']
+            reply_user_id = data['in_reply_to_user_id']
+            if reply_status_id 
+              u, s = user_and_status(reply_user_id,reply_status_id)
+              if u and s
+                print "\t in reply to: "
+                print_tweet(s.user.screen_name, s.text)
+              end
             end
           end
         end
@@ -246,16 +249,17 @@ trap("INT", "EXIT")
 def usage
   puts "usage: earlybird.rb -c consumer_token -s consumer_secret -a access_token -S access_secret [-d] [-f] [-t key,words] [-u url] [-h host]"
   puts "options: "
-  puts "  -c \t --consumer_token= \t consumer token" 
-  puts "  -s \t --consumer_secret= \t consumer secret" 
-  puts "  -a \t --access_token= \t access token" 
-  puts "  -S \t --access_secret= \t access secret" 
-  puts "  -d \t\t\t debug mode, read json from stdin"
-  puts "  -f \t\t\t filter out @replies from users you don't follow"
-  puts "  -g \t\t\t growl notifications for new tweets"
-  puts "  -t \t\t\t track keywords separated by commas."
-  puts "  -u \t\t\t userstream path. Default: /2b/user.json"
-  puts "  -h \t\t\t userstream hostname: Default: betastream.twitter.com"
+  puts "  -c   --consumer_token   consumer token" 
+  puts "  -s   --consumer_secret  consumer secret" 
+  puts "  -a   --access_token     access token" 
+  puts "  -S   --access_secret    access secret" 
+  puts "  -r                      show in reply too (takes a lot of API requests)"
+  puts "  -d                      debug mode, read json from stdin"
+  puts "  -f                      filter out @replies from users you don't follow"
+  puts "  -g                      growl notifications for new tweets"
+  puts "  -t                      track keywords separated by commas."
+  puts "  -u                      userstream path. Default: /2b/user.json"
+  puts "  -h                      userstream hostname: Default: betastream.twitter.com"
 end
 
 opts = GetoptLong.new(
@@ -265,6 +269,7 @@ opts = GetoptLong.new(
       [ '--access-secret','-S', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--help', GetoptLong::NO_ARGUMENT ],
       [ '-d', GetoptLong::OPTIONAL_ARGUMENT ],
+      [ '-r', GetoptLong::OPTIONAL_ARGUMENT ],
       [ '-f', GetoptLong::OPTIONAL_ARGUMENT ],
       [ '-g', GetoptLong::OPTIONAL_ARGUMENT ],
       [ '-t', GetoptLong::OPTIONAL_ARGUMENT],
@@ -274,6 +279,7 @@ opts = GetoptLong.new(
 $debug = false
 $filter = false
 $growl = false
+$inreply = false
 $track = []
 $url = '/2b/user.json'
 $host = 'betastream.twitter.com'
@@ -300,6 +306,8 @@ opts.each do |opt, arg|
     $url = arg
   when '-h'
     $host = arg
+  when '-r'
+    $inreply = true
   when '--consumer-token'
     $consumer_token = arg
   when '--consumer-secret'
@@ -318,9 +326,10 @@ end
 
 puts "connecting to https://#{$host}#{$url}"
 
-eb = EarlyBird.new($consumer_token, $consumer_secret, $ac_token, $ac_secret, $filter, $track)
+eb = EarlyBird.new($consumer_token, $consumer_secret, $ac_token, $ac_secret, $filter, $track, $inreply)
 trap("EXIT") { eb.cleanup_icons }
 
 consumer = OAuth::Consumer.new($consumer_token, $consumer_secret)
 token = OAuth::Token.new($ac_token, $ac_secret)
+
 Hose.new.run(consumer, token, $host, $url, $debug){|line| eb.process(line)}
