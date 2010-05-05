@@ -8,6 +8,12 @@ See http://apiwiki.twitter.com/ChirpUserStreams for more info.
 
 Send questions about User Streams to http://groups.google.com/group/twitter-development-talk or about this script to ryan@twitter.com.
 
+Dependenices:
+json
+twitter
+oauth
+term-ansicolor
+
 
 
 Copyright (c) 2010 Twitter, Inc.,
