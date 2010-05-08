@@ -121,7 +121,7 @@ class EarlyBird
       print_tweet(data['direct_message']['sender_screen_name'], data['direct_message']['text'])
     elsif data['text'] #tweet
       # If it's from a friend or from yourself, treat as a tweet.
-      if (@friends.include?(data['user']['id']) or (data['user']['screen_name'] == @screen_name)) and not data['retweeted_status']
+      if (@friends.include?(data['user']['id']) or (data['user']['screen_name'] == @screen_name))
         print_tweet_from_data(data)
         if @inreply #show in reply too tweets
           reply_status_id = data['in_reply_to_status_id']
@@ -134,9 +134,11 @@ class EarlyBird
             end
           end
         end
-      else
+      elsif not data['retweeted_status']
         print "search result: \n\t"
         print_search(data['user']['screen_name'], data['text'])
+      else
+        #a retweet. ignore because we get that with the retweet event 
       end
     elsif data['event']
       case data['event']
@@ -150,7 +152,7 @@ class EarlyBird
         print sn(s['screen_name']), ' ', data['event'], 'ed', ' ', sn(t['screen_name']), "\n"
       else
         puts "unknown event: #{data['event']}"
-        puts data
+        pp data
       end
     elsif data['limit'] && data['limit']['track']
       puts bold("rate limited on track...")
@@ -205,7 +207,6 @@ class Hose
         Net::HTTP.start(host) {|http|
           req = Net::HTTP::Get.new(path)
           req.oauth!(http,consumer,token)
-          puts "calling #{req.path}"
           http.request(req) do |response|
             buffer = ''
             raise response.inspect unless response.code == '200'
@@ -220,7 +221,6 @@ class Hose
                   lines = buffer.split(CRLF)
                   buffer = lines.pop
                 end
-
                 extract_json(lines).each {|line| yield(line)}
               end
             end
@@ -301,6 +301,7 @@ opts.each do |opt, arg|
   when '-h'
     $host = arg
   when '-r'
+    require 'twitter'
     $inreply = true
   when '--consumer-token'
     $consumer_token = arg
