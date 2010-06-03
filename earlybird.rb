@@ -69,7 +69,7 @@ class EarlyBird
   end
 
   def l(l)
-    yellow(bold(l))
+    blue(bold(l))
   end
 
   def user_and_status(user_id, status_id)
