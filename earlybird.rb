@@ -178,30 +178,10 @@ class EarlyBird
         print sn(data['source']['screen_name']), ' ', data['event'], d, "\n"
         print "\t"
         print_tweet(data['target_object']['user']['screen_name'], data['target_object']['text'])
-        s = "RA: @#{data['source']['screen_name']} #{data['event']}#{d} @#{data['target_object']['user']['screen_name']} tweet: http://twitter.com/#{data['target_object']['user']['screen_name']}/status/#{data['target_object']['id']}"
-        a = [{:event=>{
-          :type=>data['event'],
-          :tweetid=>data['target_object']['id'].to_s,
-          :link=>"http://twitter.com/#{data['target_object']['user']['screen_name']}/status/#{data['target_object']['id']}",
-          :sourceid=>data['source']['id'].to_s,
-          :source=>data['source']['screen_name'],
-          :targetid=>data['target_object']['user']['id'].to_s,
-          :target=>data['target_object']['user']['screen_name']
-          }}]
-        status_post(s,a)
       when 'unfollow', 'follow', 'block'
         s = data['source']
         t = data['target']
         print sn(s['screen_name']), ' ', data['event'], 'ed', ' ', sn(t['screen_name']), "\n"
-        st = "RA: user #{data['source']['screen_name']} #{data['event']}ed user #{data['target']['screen_name']}"
-        a = [{:event=>{
-          :type=>data['event'],
-          :sourceid=>data['source']['id'].to_s,
-          :source=>data['source']['screen_name'],
-          :targetid=>data['target']['id'].to_s,
-          :target=>data['target']['screen_name']
-          }}]
-        status_post(st,a)
       else
         puts "unknown event: #{data['event']}"
         pp data
