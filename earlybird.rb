@@ -68,6 +68,10 @@ class EarlyBird
     red(bold(sn))
   end
 
+  def l(l)
+    yellow(bold(l))
+  end
+
   def user_and_status(user_id, status_id)
     u = @client.user(user_id)
     s = @client.status(status_id)
@@ -182,6 +186,15 @@ class EarlyBird
         s = data['source']
         t = data['target']
         print sn(s['screen_name']), ' ', data['event'], 'ed', ' ', sn(t['screen_name']), "\n"
+      when 'list_member_added', 'list_member_removed'
+        act = [' added ', ' to the ']
+        if data['event'] == 'list_member_removed'
+          act = [' removed ', ' from the ']
+        end
+        s = data['source']
+        t = data['target']
+        to = data['target_object']
+        print sn(s['screen_name']), act[0], sn(t['screen_name']), act[1], l(to['name']), ' list', "\n"
       else
         puts "unknown event: #{data['event']}"
         pp data
