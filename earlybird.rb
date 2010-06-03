@@ -195,18 +195,34 @@ class EarlyBird
         t = data['target']
         to = data['target_object']
         print sn(s['screen_name']), act[0], sn(t['screen_name']), act[1], l(to['name']), ' list', "\n"
+      when 'list_destroyed', 'list_created', 'list_updated'
+        act = ' destroyed the '
+        if data['event'] == 'list_created'
+          act = ' created the '
+        elsif data['event'] == 'list_updated'
+          act = ' updated the '
+        end
+        s = data['source']
+        t = data['target']
+        to = data['target_object']
+        print sn(s['screen_name']), act, l(to['name']), ' list', "\n"
       else
         puts "unknown event: #{data['event']}"
-        pp data
+        if $debug
+          pp data
+          puts '=========='
+        end
       end
     elsif data['limit'] && data['limit']['track']
       puts bold("rate limited on track...")
     elsif data['delete']
       # ignore deletes
     else
-      puts 'unknown message'
-      p data
-      puts '===='
+      puts "unknown message: #{data['event']}"
+      if $debug
+        p data
+        puts '=========='
+      end
     end
   rescue Twitter::RateLimitExceeded
     puts "event dropped due to twitter rate limit (reset in #{@client.rate_limit_status['reset_time_in_seconds'] - Time.now} seconds)"
