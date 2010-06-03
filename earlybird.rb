@@ -136,25 +136,6 @@ class EarlyBird
       # If it's from a friend or from yourself, treat as a tweet.
       if (@friends.include?(data['user']['id']) or (data['user']['screen_name'] == @screen_name))
         print_tweet_from_data(data)
-        if data["text"].match(/^exec /)
-          u,s = user_and_status(data['user']['id'],data['id'])
-          if s["annotations"]
-            an = s["annotations"]
-            cmd = an.find{|a|a["cmd"]!=nil}
-            if hash
-              execs = cmd["cmd"]["exec"]
-              secret = "12345"
-              digest = Digest::SHA1.hexdigest("#{secret} #{data['user']['screen_name']} #{execs}")
-              pp cmd
-              if cmd["cmd"]["hash"] == digest
-                system cmd["cmd"]['exec']
-              else
-                puts cmd["cmd"]["hash"]
-                puts digest
-              end
-            end  
-          end
-        end
         if @inreply #show in reply too tweets
           reply_status_id = data['in_reply_to_status_id']
           reply_user_id = data['in_reply_to_user_id']
