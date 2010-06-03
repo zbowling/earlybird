@@ -4,7 +4,7 @@
 
 $KCODE = 'u'
 
-%w[rubygems digest/sha1 oauth/client/net_http net/https oauth/signature/plaintext pp net/http json twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri].each{|l| require l}
+%w[rubygems digest/sha1 oauth/client/net_http net/https oauth/signature/plaintext pp net/http json twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri couchrest].each{|l| require l}
 
 include Term::ANSIColor
 
@@ -126,6 +126,10 @@ class EarlyBird
   end
 
   def process(data)
+    if $couch
+      @db = CouchRest.database!($couch)
+      @db.save_doc(data)
+    end
     if data['friends']
       # initial dump of friends
       @friends = data['friends']
@@ -323,6 +327,7 @@ $consumer_token = ''
 $consumer_secret = ''
 $ac_token = ''
 $ac_secret = ''
+$couch = ''
 
 opts.each do |opt, arg|
   case opt
@@ -353,7 +358,13 @@ opts.each do |opt, arg|
     $ac_token = arg
   when '--access-secret'
     $ac_secret = arg
+  when '--couch'
+    $couch = arg
   end
+end
+
+if $couch.empty?
+  $couch = 'http://127.0.0.1:5984/earlybird-test'
 end
 
 unless $track.empty?
