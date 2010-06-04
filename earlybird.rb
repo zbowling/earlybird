@@ -126,7 +126,7 @@ class EarlyBird
   end
 
   def process(data)
-    if $couch
+    if $couch_enabled
       @db = CouchRest.database!($couch)
       @db.save_doc(data)
     end
@@ -138,7 +138,8 @@ class EarlyBird
       print_tweet(data['direct_message']['sender_screen_name'], data['direct_message']['text'])
     elsif data['text'] #tweet
       # If it's from a friend or from yourself, treat as a tweet.
-      if (@friends.include?(data['user']['id']) or (data['user']['screen_name'] == @screen_name))
+      if data['retweeted_status']
+      elsif (@friends.include?(data['user']['id']) or (data['user']['screen_name'] == @screen_name))
         print_tweet_from_data(data)
         if @inreply #show in reply too tweets
           reply_status_id = data['in_reply_to_status_id']
@@ -300,6 +301,7 @@ def usage
   puts "  -t                      track keywords separated by commas."
   puts "  -u                      userstream path. Default: /2b/user.json"
   puts "  -h                      userstream hostname: Default: betastream.twitter.com"
+  puts "  --couch                 enable couchdb logging. Default: http://127.0.0.1:5984/earlybird-test"
 end
 
 opts = GetoptLong.new(
@@ -307,6 +309,7 @@ opts = GetoptLong.new(
       [ '--consumer-secret','-s', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--access-token','-a', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--access-secret','-S', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--couch', GetoptLong::OPTIONAL_ARGUMENT ],
       [ '--help', GetoptLong::NO_ARGUMENT ],
       [ '-d', GetoptLong::OPTIONAL_ARGUMENT ],
       [ '-r', GetoptLong::OPTIONAL_ARGUMENT ],
@@ -359,6 +362,7 @@ opts.each do |opt, arg|
   when '--access-secret'
     $ac_secret = arg
   when '--couch'
+    $couch_enabled = true
     $couch = arg
   end
 end
