@@ -4,7 +4,7 @@
 
 $KCODE = 'u'
 
-%w[rubygems digest/sha1 oauth/client/net_http net/https oauth/signature/plaintext pp net/http json twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri couchrest].each{|l| require l}
+%w[rubygems couchrest mongo digest/sha1 oauth/client/net_http net/https oauth/signature/plaintext pp net/http  twitter-text term/ansicolor twitter highline/import getoptlong tempfile open-uri json].each{|l| require l}
 
 include Term::ANSIColor
 
@@ -133,13 +133,22 @@ class EarlyBird
     if data['friends']
       # initial dump of friends
       @friends = data['friends']
+      if $mongo_enabled
+        $mdb["friends"].insert(data)
+      end   
     elsif data['direct_message'] #dm
+      if $mongo_enabled
+        $mdb['direct_message'].insert(data)
+      end
       print "direct message: \n\t"
       print_tweet(data['direct_message']['sender_screen_name'], data['direct_message']['text'])
     elsif data['text'] #tweet
       # If it's from a friend or from yourself, treat as a tweet.
       if data['retweeted_status']
       elsif (@friends.include?(data['user']['id']) or (data['user']['screen_name'] == @screen_name))
+        if $mongo_enabled
+          $mdb['tweet'].insert(data)
+        end
         print_tweet_from_data(data)
         if @inreply #show in reply too tweets
           reply_status_id = data['in_reply_to_status_id']
@@ -154,11 +163,17 @@ class EarlyBird
         end
       elsif not data['retweeted_status']
         print "search result: \n\t"
+        if $mongo_enabled
+          $mdb['tweet'].insert(data)
+        end
         print_search(data['user']['screen_name'], data['text'])
       else
         #a retweet. ignore because we get that with the retweet event 
       end
     elsif data['event']
+      if $mongo_enabled
+        $mdb['event'].insert(data)
+      end
       case data['event']
       when 'favorite', 'unfavorite', 'retweet'
         d = 'd'
@@ -309,6 +324,7 @@ opts = GetoptLong.new(
       [ '--consumer-secret','-s', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--access-token','-a', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--access-secret','-S', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--mongo', GetoptLong::OPTIONAL_ARGUMENT ],
       [ '--couch', GetoptLong::OPTIONAL_ARGUMENT ],
       [ '--help', GetoptLong::NO_ARGUMENT ],
       [ '-d', GetoptLong::OPTIONAL_ARGUMENT ],
@@ -331,6 +347,8 @@ $consumer_secret = ''
 $ac_token = ''
 $ac_secret = ''
 $couch = ''
+$mongo_enabled = false
+$mongo = 'twitter'
 
 opts.each do |opt, arg|
   case opt
@@ -364,12 +382,19 @@ opts.each do |opt, arg|
   when '--couch'
     $couch_enabled = true
     $couch = arg
+  when '--mongo'
+    $mongo_enabled = true
+    if not arg.empty?
+      $mongo = arg
+    end 
+    $mdb = Mongo::Connection.new.db($mongo) 
   end
 end
 
 if $couch.empty?
   $couch = 'http://127.0.0.1:5984/earlybird-test'
 end
+
 
 unless $track.empty?
   puts "tracking term #{$track}"
